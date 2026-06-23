@@ -1,51 +1,37 @@
-# Credits: @mrismanaziz
-# FROM File-Sharing-Man <https://github.com/mrismanaziz/File-Sharing-Man/>
-# t.me/SharingUserbot & t.me/Lunatic0de
-
 from config import FORCE_SUB, BUTTONS_PER_ROW, BUTTONS_JOIN_TEXT
 from pyrogram.types import InlineKeyboardButton
 
 
 def start_button(client):
-    if not FORCE_SUB:
-        buttons = [
-            [
-                InlineKeyboardButton(text="ʜᴇʟᴘ & ᴄᴏᴍᴍᴀɴᴅs", callback_data="help"),
-                InlineKeyboardButton(text="ᴛᴜᴛᴜᴘ", callback_data="close"),
-            ],
-        ]
-        return buttons
+    buttons = []
 
-    dynamic_buttons = []
-    num_force_sub = len(FORCE_SUB)
-
-    current_row = []
-    for key in FORCE_SUB.keys():
-        current_row.append(InlineKeyboardButton(text=f"{BUTTONS_JOIN_TEXT} {key}", url=getattr(client, f'invitelink{key}')))
-        if len(current_row) == BUTTONS_PER_ROW:
-            dynamic_buttons.append(current_row)
-            current_row = []
-
-    if current_row:
-        dynamic_buttons.append(current_row)
-
-    buttons = [
-        [
-            InlineKeyboardButton(text="ʜᴇʟᴘ & ᴄᴏᴍᴍᴀɴᴅs", callback_data="help"),
-        ],
-    ] + dynamic_buttons + [
-        [InlineKeyboardButton(text="ᴛᴜᴛᴜᴘ", callback_data="close")],
+    # HELP BUTTON
+    row = [
+        InlineKeyboardButton("ʜᴇʟᴘ & ᴄᴏᴍᴍᴀɴᴅs", callback_data="help"),
+        InlineKeyboardButton("ᴛᴜᴛᴜᴘ", callback_data="close"),
     ]
-    return buttons
+    buttons.append(row)
 
-def fsub_button(client, message):
+    # FORCE SUB BUTTONS
     if FORCE_SUB:
         dynamic_buttons = []
-        num_force_sub = len(FORCE_SUB)
-
         current_row = []
-        for key in FORCE_SUB.keys():
-            current_row.append(InlineKeyboardButton(text=f"{BUTTONS_JOIN_TEXT} {key}", url=getattr(client, f'invitelink{key}')))
+
+        for key, value in FORCE_SUB.items():
+
+            # ambil invite link dari client (AMAN + fallback)
+            invite_link = getattr(client, f'invitelink{key}', None)
+
+            if not invite_link:
+                invite_link = value.get("link", "https://t.me")
+
+            current_row.append(
+                InlineKeyboardButton(
+                    text=f"{BUTTONS_JOIN_TEXT} {key}",
+                    url=invite_link
+                )
+            )
+
             if len(current_row) == BUTTONS_PER_ROW:
                 dynamic_buttons.append(current_row)
                 current_row = []
@@ -53,14 +39,54 @@ def fsub_button(client, message):
         if current_row:
             dynamic_buttons.append(current_row)
 
-        try:
-            dynamic_buttons.append([
+        buttons.extend(dynamic_buttons)
+
+    # CLOSE BUTTON
+    buttons.append([
+        InlineKeyboardButton("ᴛᴜᴛᴜᴘ", callback_data="close")
+    ])
+
+    return buttons
+
+
+def fsub_button(client, message):
+    if not FORCE_SUB:
+        return None
+
+    buttons = []
+    current_row = []
+
+    for key, value in FORCE_SUB.items():
+
+        invite_link = getattr(client, f'invitelink{key}', None)
+
+        if not invite_link:
+            invite_link = value.get("link", "https://t.me")
+
+        current_row.append(
+            InlineKeyboardButton(
+                text=f"{BUTTONS_JOIN_TEXT} {key}",
+                url=invite_link
+            )
+        )
+
+        if len(current_row) == BUTTONS_PER_ROW:
+            buttons.append(current_row)
+            current_row = []
+
+    if current_row:
+        buttons.append(current_row)
+
+    # retry button aman
+    try:
+        if hasattr(message, "command") and len(message.command) > 1:
+            buttons.append([
                 InlineKeyboardButton(
                     text="ᴄᴏʙᴀ ʟᴀɢɪ",
-                    url=f"https://t.me/{client.username}?start={message.command[1]}",
+                    url=f"https://t.me/{client.username}?start={message.command[1]}"
                 )
             ])
-        except IndexError:
-            pass
+    except:
+        pass
 
-        return dynamic_buttons
+    return buttons
