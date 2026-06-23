@@ -1,28 +1,31 @@
-# (©)Codexbotz
-# Recode by @mrismanaziz
-# t.me/SharingUserbot & t.me/Lunatic0de
-
 import asyncio
-
-from pyrogram.errors import FloodWait
+from pyrogram.errors import FloodWait, UserIsBlocked, PeerIdInvalid
 
 from database.sql import query_msg
 
 
 async def users_info(bot):
-    users = 0
-    blocked = 0
-    identity = await query_msg()
-    for id in identity:
-        name = bool()
+    active_users = 0
+    blocked_users = 0
+
+    users = await query_msg()
+
+    for user in users:
+        user_id = int(user[0])
+
         try:
-            name = await bot.send_chat_action(int(id[0]), "typing")
+            # coba kirim "typing action"
+            await bot.send_chat_action(user_id, "typing")
+            active_users += 1
+
         except FloodWait as e:
-            await asyncio.sleep(e.x)
+            await asyncio.sleep(e.value)
+
+        except (UserIsBlocked, PeerIdInvalid):
+            blocked_users += 1
+
         except Exception:
-            pass
-        if bool(name):
-            users += 1
-        else:
-            blocked += 1
-    return users, blocked
+            # error lain dianggap tidak aktif
+            blocked_users += 1
+
+    return active_users, blocked_users
