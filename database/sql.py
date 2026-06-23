@@ -1,62 +1,74 @@
 import threading
-
-from sqlalchemy import TEXT, Column, Numeric, create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session
 
 from config import DB_URI
 
-
-def start() -> scoped_session:
-    engine = create_engine(DB_URI, client_encoding="utf8")
-    BASE.metadata.bind = engine
-    BASE.metadata.create_all(engine)
-    return scoped_session(sessionmaker(bind=engine, autoflush=False))
-
+# ================= ENGINE =================
+engine = create_engine(DB_URI, connect_args={"check_same_thread": False})
 
 BASE = declarative_base()
-SESSION = start()
+
+SESSION = scoped_session(
+    sessionmaker(bind=engine, autoflush=False, autocommit=False)
+)
 
 INSERTION_LOCK = threading.RLock()
 
+# ================= TABLE =================
+class User(BASE):
+    __tablename__ = "users"
 
-class Broadcast(BASE):
-    __tablename__ = "broadcast"
-    id = Column(Numeric, primary_key=True)
-    user_name = Column(TEXT)
+    id = Column(Integer, primary_key=True)
+    user_name = Column(String(255))
 
     def __init__(self, id, user_name):
         self.id = id
         self.user_name = user_name
 
 
-Broadcast.__table__.create(checkfirst=True)
+BASE.metadata.create_all(engine)
 
-
-#  Add user details -
-async def add_user(id, user_name):
+# ================= ADD USER =================
+def add_user(user_id, user_name):
     with INSERTION_LOCK:
-        msg = SESSION.query(Broadcast).get(id)
-        if not msg:
-            usr = Broadcast(id, user_name)
-            SESSION.add(usr)
+        try:
+            user = SESSION.query(User).filter(User.id == user_id).first()
+
+            if not user:
+                user = User(user_id, user_name)
+                SESSION.add(user)
+                SESSION.commit()
+
+        except Exception as e:
+            SESSION.rollback()
+            print(f"Error add_user: {e}")
+
+# ================= DELETE USER =================
+def delete_user(user_id):
+    with INSERTION_LOCK:
+        try:
+            SESSION.query(User).filter(User.id == user_id).delete()
             SESSION.commit()
 
+        except Exception as e:
+            SESSION.rollback()
+            print(f"Error delete_user: {e}")
 
-async def delete_user(id):
-    with INSERTION_LOCK:
-        SESSION.query(Broadcast).filter(Broadcast.id == id).delete()
-        SESSION.commit()
-
-
-async def full_userbase():
-    users = SESSION.query(Broadcast).all()
-    SESSION.close()
-    return users
-
-
-async def query_msg():
+# ================= GET ALL USERS =================
+def full_userbase():
     try:
-        return SESSION.query(Broadcast.id).order_by(Broadcast.id)
-    finally:
-        SESSION.close()
+        return SESSION.query(User).all()
+
+    except Exception as e:
+        print(f"Error full_userbase: {e}")
+        return []
+
+# ================= GET USER IDS =================
+def get_all_user_ids():
+    try:
+        return [user.id for user in SESSION.query(User.id).all()]
+
+    except Exception as e:
+        print(f"Error get_all_user_ids: {e}")
+        return []
